@@ -1,0 +1,28 @@
+﻿@page "/sign-out"
+@using Blazored.LocalStorage
+
+@inject NavigationManager nav
+@inject HttpClient http
+@inject ILocalStorageService localStorage
+@inject AuthenticationStateProvider authenticationStateProvider
+
+@code {
+	protected override async Task OnInitializedAsync()
+	{
+		// TODO: move this to an auth service 
+		AuthenticationState authState = await this.authenticationStateProvider.GetAuthenticationStateAsync();
+
+		if (authState.User.Identity?.IsAuthenticated ?? false)
+		{
+			await this.localStorage.RemoveItemAsync(ApiAuthenticationStateProvider.TokenKey);
+
+			if (this.authenticationStateProvider is not ApiAuthenticationStateProvider apiAuthenticationStateProvider)
+				throw new InvalidOperationException(); // TODO: better exception/message
+
+			apiAuthenticationStateProvider.MarkUserAsSignedOut();
+			this.http.DefaultRequestHeaders.Authorization = null;
+		}
+
+		this.nav.NavigateTo("sign-in");
+	}
+}

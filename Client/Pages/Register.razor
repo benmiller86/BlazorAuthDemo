@@ -1,0 +1,57 @@
+﻿@page "/register"
+@using BlazorAuthDemo.Shared
+@using Blazored.LocalStorage
+
+@inject NavigationManager nav
+@inject HttpClient http
+@inject ILocalStorageService localStorage
+@inject AuthenticationStateProvider authenticationStateProvider
+
+<div class="div mb-3">
+	<label class="form-label">
+		E-Mail
+		<input type="email" @bind-value="this.Email" class="form-control" />
+	</label>
+	<label class="form-label">
+		Password
+		<input type="password" @bind-value="this.Password" class="form-control" />
+	</label>
+	<button type="submit" class="btn btn-primary" @onclick="this.OnSubmitAsync">Register</button>
+</div>
+
+@code {
+
+	private string? Email { get; set; }
+	private string? Password { get; set; }
+
+	public async Task OnSubmitAsync()
+	{
+		// TODO: validate the form
+
+		HttpResponseMessage response1 = await this.http.PostAsJsonAsync("/api/authentication/register", new UserSignIn(this.Email, this.Password));
+
+		response1.EnsureSuccessStatusCode();
+
+		// TODO: abstract this logic into service (it's duplicated on the sign-in page)
+		HttpResponseMessage response2 = await this.http.PostAsJsonAsync("/api/authentication/signin", new UserSignIn(this.Email, this.Password));
+
+		response2.EnsureSuccessStatusCode();
+
+		UserSignInResult signInResult = await response2.Content.ReadFromJsonAsync<UserSignInResult>()
+			?? throw new NullReferenceException($"Could not read {nameof(UserSignInResult)} from response.");
+
+		if (!signInResult.Success)
+			throw new NotImplementedException(); // TODO: show incorrect email/password UI message
+
+		await this.localStorage.SetItemAsync(ApiAuthenticationStateProvider.TokenKey, signInResult.Token);
+		ApiAuthenticationStateProvider apiAuthenticationStateProvider = this.authenticationStateProvider 
+			as ApiAuthenticationStateProvider ?? throw new NotImplementedException();
+
+		apiAuthenticationStateProvider.MarkUserAsAuthenticated(signInResult.Token
+			?? throw new NullReferenceException($"{nameof(UserSignInResult)} did not include a value for {nameof(UserSignInResult.Token)}"));
+
+		this.http.DefaultRequestHeaders.Authorization = new("bearer", signInResult.Token);
+
+		this.nav.NavigateTo("/");
+	}
+}
